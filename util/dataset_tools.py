@@ -10,11 +10,12 @@ import torchvision
 import torch
 from torchvision import transforms
 
-from vis_tools import CSV_Writer
+from util.vis_tools import CSV_Writer
 
 EPOCHS = 200
-LEARNING_RATE = 0.2
-STEP_LR = 5
+LEARNING_RATE = 0.1
+STEP_LR = 10
+LR_SCALER = 0.9
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -87,20 +88,6 @@ def get_cifar100(batch_size=64, new_transforms=[]):
 
     return train_loader, test_loader
 
-
-def save_on_improve(model, test_loader, prev_accuracy, path):
-    accuracy, _ = test(model, test_loader, parellel=True)
-    print(f"Accuracy: {accuracy:.2f}%")
-
-    if accuracy - prev_accuracy > 1:
-        print(
-            f"Accuracy improved from {prev_accuracy:.2f}% to {accuracy:.2f}%. Saving model."
-        )
-        save_model(model, path)
-        return accuracy
-    return prev_accuracy
-
-
 def train(
     model,
     train_loader,
@@ -125,7 +112,7 @@ def train(
 
     train_losses = []
     test_losses = []
-    prev_accuracy = 0
+    prev_acc = 0
 
     for epoch in range(epochs):
         epoch_loss = 0
@@ -145,6 +132,10 @@ def train(
             # torch.set_printoptions(profile="default")
             # exit()
 
+            # output = torch.argmax(output, dim=1)
+
+            # print(output, target)
+
             loss = criterion(output, target)
             loss.backward()
             optimizer.step()
@@ -155,7 +146,7 @@ def train(
             epoch_loss += loss.item()
 
         if epoch % STEP_LR == 0:
-            learning_rate = learning_rate * 0.9
+            learning_rate = learning_rate * LR_SCALER
             for param_group in optimizer.param_groups:
                 param_group["lr"] = learning_rate
 
@@ -163,14 +154,15 @@ def train(
         acc, test_loss = test(model, test_loader, parellel=parellel)
         train_losses.append(epoch_loss)
         test_losses.append(test_loss)
-        print(
-            "Epoch: {} Loss: {:.6f} Test Loss: {:.6f} Test Accuracy: {:.2f}%".format(
-                epoch + 1, epoch_loss, test_loss, acc
-            )
-        )
+        print("Epoch: {} Loss: {:.6f} Test Loss: {:.6f} Test Accuracy: {:.2f}%".format(
+            epoch + 1, epoch_loss, test_loss, acc
+        ))
 
-        if path is not None:
-            prev_accuracy = save_on_improve(model, test_loader, prev_accuracy, path)
+        if path is not None and acc - prev_acc > 1:
+            print(f"Accuracy improved from {prev_acc:.2f}% to {acc:.2f}%. Saving model.")
+            save_model(model, path)
+        
+        prev_acc = acc
 
     # plt.plot(range(1, epochs + 1), train_losses, label='Training loss')
     # plt.plot(range(1, epochs + 1), test_losses, label='Test loss')
@@ -187,71 +179,35 @@ def train(
     return model
 
 
-def test(model, test_loader, testname=None, parellel=False, prev_layer_size=84):
+def test(model, test_loader, parellel=False):
     # Test the model
     criterion = nn.CrossEntropyLoss()
     test_loss = 0
     correct = 0
     total = 0
 
-    dump_tgt = np.ndarray([])
-    dump_pred = np.ndarray([])
-    # dump_softmax = np.ndarray((10,))
-    dump_prev_layer = np.ndarray((prev_layer_size,))
-
-    if parellel:
-        model = nn.DataParallel(model)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        device = torch.device("cpu")
+    # if parellel:
+    #     model = model.to(device)
+    #     model = nn.DataParallel(model)
 
     with torch.no_grad():
         for data, target in tqdm.tqdm(test_loader):
-            # dump each image as png
-            # for i in range(data.shape[0] - 1):
-            #     img_diff = data[i].cpu().numpy() - data[i + 1].cpu().numpy()
+            if parellel:
+                data = data.to(device)
+                target = target.to(device)
+            else:
+                data = data.to("cpu")
+                target = target.to("cpu")
 
-            # exit()
-            model.to(device)
-
-            data = data.to(device)
-            target = target.to(device)
-
-            try:
-                output, prev_layer = model(data)
-            except ValueError:
-                output = model(data)
-                prev_layer = None
+            output = model(data)
 
             test_loss += criterion(output, target).item()
             _, predicted = torch.max(output.data, 1)
             total += target.size(0)
             correct += (predicted == target).sum().item()
 
-            dump_pred = np.append(dump_pred, predicted.cpu().numpy())
-            dump_tgt = np.append(dump_tgt, target.cpu().numpy())
-
-            # dump_softmax = np.vstack((dump_softmax, torch.softmax(output, dim=1).cpu().numpy()))
-            if prev_layer is not None:
-                dump_prev_layer = np.vstack((dump_prev_layer, prev_layer.cpu().numpy()))
-
     test_loss /= len(test_loader.dataset)
     accuracy = 100 * correct / total
-
-    if testname is not None:
-        dump = np.vstack((dump_tgt, dump_pred)).T
-        dump = dump.astype(int)
-        csv = CSV_Writer(f"result/{testname}.csv", "'target','prediction'")
-        csv.write(dump)
-        csv.close()
-
-        # csv = CSV_Writer(f"result/{testname}_last_layer.csv")
-        # csv.write(dump_softmax)
-        # csv.close()
-
-        csv = CSV_Writer(f"result/{testname}_prev_layer.csv")
-        csv.write(dump_prev_layer)
-        csv.close()
 
     torch.cuda.empty_cache()
 

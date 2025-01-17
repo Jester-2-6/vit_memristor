@@ -4,7 +4,7 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 import pickle
 
-from LUTorch.nn import memConv2d, memLinear
+from LUTorch.nn.memLinear import memLinear
 
 LUT_FILE_PATH = "data/mapped_lut.pkl"
 
@@ -39,7 +39,7 @@ class ViT(nn.Module):
         lut = None
         
         with open(LUT_FILE_PATH, 'rb') as f:
-            lut = pickle.load(f)
+            lut = torch.tensor(pickle.load(f)).to(torch.device('cuda'))
 
         self.to_patch_embedding = nn.Sequential(
             Rearrange(

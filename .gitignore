@@ -173,3 +173,7 @@ cython_debug/
 # datasets
 vit-pytorch/examples/data/*
 *.zip
+*.pkl
+data/*
+*.pth
+*.pt
