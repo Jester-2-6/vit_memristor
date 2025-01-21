@@ -1,12 +1,11 @@
 import copy
 
 import torch
-from torchvision.transforms import ToPILImage, ToTensor
+from torchvision.transforms import ToPILImage
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim import Adam
 import torch.nn as nn
 import numpy as np
-from matplotlib import pyplot as plt
 
 from art.estimators.classification import PyTorchClassifier
 from art.attacks.evasion import (

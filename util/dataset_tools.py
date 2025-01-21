@@ -10,8 +10,6 @@ import torchvision
 import torch
 from torchvision import transforms
 
-from util.vis_tools import CSV_Writer
-
 EPOCHS = 200
 LEARNING_RATE = 0.1
 STEP_LR = 10
