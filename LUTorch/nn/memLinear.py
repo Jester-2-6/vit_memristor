@@ -12,6 +12,10 @@ class MemLinearFunction(Function):
         ctx.save_for_backward(x, weight, bias, lookup_table)
         ctx.steps = steps
         ctx.table_size = table_size
+        pre_dim = x.dim()
+
+        if pre_dim == 3:
+            x = x.squeeze(1)
 
         # Quantize weights to steps
         quantized_weights = torch.round((weight + 1) * (steps - 1) / 2).long()
@@ -20,6 +24,10 @@ class MemLinearFunction(Function):
         # Quantize inputs to table_size
         quantized_inputs = torch.round((x + 1) * (table_size - 1) / 2).long()
         quantized_inputs = torch.clamp(quantized_inputs, 0, table_size - 1)
+        
+        lookup_table = lookup_table.to(x.device)
+        quantized_weights = quantized_weights.to(x.device)
+        quantized_inputs = quantized_inputs.to(x.device)
 
         # Fetch values from the lookup table
         output = torch.zeros(x.size(0), weight.size(0), device=x.device)
@@ -32,6 +40,9 @@ class MemLinearFunction(Function):
 
         # Add bias
         output += bias
+        if pre_dim == 3:
+            output = output.unsqueeze(1)
+
         return output
 
     @staticmethod
@@ -85,6 +96,7 @@ class memLinear(nn.Linear):
             Returns:
                 torch.Tensor: Output tensor after applying the linear transformation.
     """
+
     def __init__(
         self,
         in_features,
