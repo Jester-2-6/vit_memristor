@@ -43,7 +43,7 @@ def get_cifar10(batch_size=64, new_transforms=[]):
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ]
 
-    new_transforms.extend(all_transforms)
+    all_transforms.extend(new_transforms)
     transform = transforms.Compose(all_transforms)
 
     # create train and test sets
