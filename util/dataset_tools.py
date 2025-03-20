@@ -120,10 +120,10 @@ def train(
             target = target.to(device)
             optimizer.zero_grad()
 
-            try:
-                output, _ = model(data)
-            except ValueError:
-                output = model(data)
+            # try:
+            #     output, _ = model(data)
+            # except ValueError:
+            output = model(data)
             # torch.set_printoptions(profile="full")
             # if batch_idx == 0:
             #     print(output)
